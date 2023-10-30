@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "axios": "^0.27.2",
+    "ipify2": "^1.1.3",
+    "serverless-s3-sync": "^3.0.0"
+  },
+  "devDependencies": {
+    "serverless-step-functions": "^3.8.0",
+    "serverless-webpack": "^5.8.0"
+  }
+}

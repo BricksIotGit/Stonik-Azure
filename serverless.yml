@@ -1,0 +1,958 @@
+
+
+service: manzelserverlessproject
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+  profile: SarkheelAccess
+  stage: dev
+  region: us-east-1
+  vpc:
+    securityGroupIds:
+      - Fn::GetAtt: [VPCStaticIP, DefaultSecurityGroup]
+    subnetIds:
+      - Ref: SubnetPrivate    
+
+  environment:
+    imageUploadBucket: ${self:custom.imageUploadBucket}
+    region: ${self:provider.region}
+    driverGeneralInfoSK: ${self:custom.driverGeneralInfoSK}
+    driverVehicleInfoSK: ${self:custom.driverVehicleInfoSK}
+    driverLicenseInfoSK: ${self:custom.driverLicenseInfoSK}
+    bantloTableName: ${self:custom.bantloTableName}
+    userPK: ${self:custom.userPK}
+    ridesPK: ${self:custom.ridesPK}
+    activePostSK: ${self:custom.activePostSK}
+    androidMoiblePlatformArn: ${self:custom.androidMoiblePlatformArn}
+    topicArn: ${self:custom.topicArn}
+    cancelledRidesTableName: ${self:custom.cancelledRidesTableName}
+    driverPostedRidesTableName: ${self:custom.driverPostedRidesTableName}
+    confirmedRidesTableName: ${self:custom.confirmedRidesTableName}
+    userTableName: ${self:custom.userTableName}
+    qrgeneratedData: ${self:custom.qrgeneratedData}
+    eWalletTableName: ${self:custom.eWalletTableName}
+    rideApprovalTableName: ${self:custom.rideApprovalTableName}
+    notificationTable: ${self:custom.notificationTable}
+    going_to_pickup: ${self:custom.going_to_pickup}
+    picked_up: ${self:custom.picked_up}
+    going_to_drop_off: ${self:custom.going_to_drop_off}
+    on_payment: ${self:custom.on_payment}
+    dropped_off: ${self:custom.dropped_off}
+    marchantpan: ${self:custom.marchantpan}
+    alertRideTable: ${self:custom.alertRideTable}
+    transactionNotificationTable: ${self:custom.transactionNotificationTable}
+    app_wide_topic_arn: ${self:custom.app_wide_topic_arn}
+    
+
+  iamRoleStatements:
+      - Effect: Allow
+        Action:
+            - dynamodb:*
+            - s3:*
+            - ses:*
+            - sns:*
+            - states:*
+        Resource: '*'
+
+plugins:
+  - serverless-s3-sync
+  - serverless-webpack
+  - serverless-step-functions
+
+package:
+    individually: true
+
+custom:
+  s3Sync:
+    - bucketName: manzelprojectbucketrepo
+      localDir: uploadData
+  imageUploadBucket: manzel-user-images-bucket
+  serverless-offline:
+    resourceRoutes: true
+  bantloTableName: batnlo
+  marchantpan: MarchantPANs
+  driverGeneralInfoSK: DRIVER_INFO#GEN_INFO#
+  driverVehicleInfoSK: DRIVER_INFO#VEH_INFO#
+  driverLicenseInfoSK: DRIVER_INFO#LICEN_INFO#
+  userPK: USER
+  ridesPK: RIDES
+  activePostSK: ACTIVE#POST#
+  alertRideTable: alert_rides
+  androidMoiblePlatformArn: arn:aws:sns:us-east-1:539072981953:app/GCM/mazel-sns-platform-application
+  topicArn: arn:aws:sns:us-east-1:933832648874
+  cancelledRidesTableName: cancelRide
+  driverPostedRidesTableName: DriverPosts
+  confirmedRidesTableName: ConfirmedRides
+  userTableName: Users
+  eWalletTableName: EWallet
+  rideApprovalTableName: rideApprovalTable
+  notificationTable: Notifications
+  qrgeneratedData: QRGeneretedData
+  going_to_pickup: going_to_pickup
+  picked_up: picked_up
+  going_to_drop_off: going_to_drop_off
+  on_payment: on_payment
+  dropped_off: dropped_off
+  transactionNotificationTable: TransactionNotificationTable
+  app_wide_topic_arn: arn:aws:sns:us-east-1:539072981953:user_creation_topic
+
+
+stepFunctions:
+  validate: true
+  stateMachines:
+    activateQRCode:
+      name: activateQRCode
+      definition: ${file(./qrGenerationStepFunction.yml)}
+
+functions:
+  changeMerchantPanStatus:
+      handler: lambdas/StepFunctionsLambdas/changeMerchantPanStatus.handler
+  addUser:
+      handler: lambdas/PASSENGER_LAMBDAS/addUser.handler
+      events:
+        - http:
+            path: add-user
+            method: POST
+            cors: true
+  addDriverPersonalInfo:
+      handler: lambdas/DRIVER_LAMBDAS/addDriverPersonalInfo.handler
+      events:
+        - http:
+            path: add-driver-personal-info
+            method: PUT
+            cors: true   
+  isAlreadyAcccount:
+      handler: lambdas/DRIVER_LAMBDAS/isAlreadyAcccount.handler
+      events:
+        - http:
+            path: is-already-account
+            method: PUT
+            cors: true               
+  addPost:
+      handler: lambdas/DRIVER_LAMBDAS/addPost.handler
+      events:
+        - http:
+            path: add-post
+            method: POST
+            cors: true    
+  updateUser:
+      handler: lambdas/PASSENGER_LAMBDAS/updateUser.handler
+      events:
+        - http:
+            path: update-user/{id}
+            method: PUT
+            cors: true 
+  qrPayment:
+      handler: lambdas/PASSENGER_LAMBDAS/qrPayment.handler
+      events:
+        - http:
+            path: qr-payment/{id}
+            method: GET
+            cors: true 
+  availableRides:
+      handler: lambdas/PASSENGER_LAMBDAS/availableRides.handler
+      events:
+        - http:
+            path: available_rides/{city_name}
+            method: GET
+            cors: true 
+  alertRide:
+      handler: lambdas/PASSENGER_LAMBDAS/alertRide.handler
+      events:
+        - http:
+            path: alert_ride
+            method: POST
+            cors: true 
+  acceptRide:
+      handler: lambdas/PASSENGER_LAMBDAS/acceptRide.handler
+      events:
+        - http:
+            path: accept_ride
+            method: POST
+            cors: true 
+  confirmedRides:
+      handler: lambdas/PASSENGER_LAMBDAS/confirmedRides.handler
+      events:
+        - http:
+            path: confirmed_rides
+            method: POST
+            cors: true 
+
+  getConfirmedRides:
+      handler: lambdas/PASSENGER_LAMBDAS/getConfirmedRides.handler
+      events:
+        - http:
+            path: confirmed_rides/{passenger_id}
+            method: GET
+            cors: true 
+  rideHistory:
+      handler: lambdas/PASSENGER_LAMBDAS/rideHistory.handler
+      events:
+        - http:
+            path: get-passenger-ride-history/{passenger_id}
+            method: GET
+            cors: true             
+
+  interestedPeopleCount:
+      handler: lambdas/DRIVER_LAMBDAS/interestedPeopleCount.handler
+      events:
+        - http:
+            path: interested_people_counter/{route}
+            method: GET
+            cors: true     
+  getPosts:
+      handler: lambdas/DRIVER_LAMBDAS/getPost.handler
+      events:
+        - http:
+            path: get-post/{user_id}
+            method: GET
+            cors: true   
+  driverPostHistory:
+      handler: lambdas/DRIVER_LAMBDAS/driverPostHistory.handler
+      events:
+        - http:
+            path: get-driver-post-history/{user_id}
+            method: GET
+            cors: true               
+  generateQRCode:
+      handler: lambdas/DRIVER_LAMBDAS/generateQRCode.handler
+      events:
+        - http:
+            path: generate-qr-code
+            method: POST
+            cors: true              
+  removeRideApprovalNotification:
+      handler: lambdas/DRIVER_LAMBDAS/removeRideApprovalNotification.handler
+      events:
+        - http:
+            path: ride_approval
+            method: PUT
+            cors: true       
+  sendPickupCode:
+      handler: lambdas/DRIVER_LAMBDAS/sendPickupCode.handler
+      events:
+        - http:
+            path: send_pickup_code
+            method: POST
+            cors: true    
+  rideConfirmed:
+      handler: lambdas/DRIVER_LAMBDAS/rideConfirmed.handler
+      events:
+        - http:
+            path: ride_confirmed
+            method: PUT
+            cors: true              
+            
+      
+  cashWallet:
+      handler: lambdas/DRIVER_LAMBDAS/cashWallet.handler
+      events:
+        - http:
+            path: cash-wallet
+            method: POST
+            cors: true       
+  getCashWalletDetails:
+      handler: lambdas/DRIVER_LAMBDAS/getCashWalletDetails.handler
+      events:
+        - http:
+            path: cash-wallet-details/{user_id}
+            method: GET
+            cors: true      
+  getActivePassengers:
+      handler: lambdas/DRIVER_LAMBDAS/getActivePassengers.handler
+      events:
+        - http:
+            path: get_active_passenger/{post_id}
+            method: GET
+            cors: true                                
+
+  getRideApprovalNotification:
+      handler: lambdas/DRIVER_LAMBDAS/getRideApprovalNotification.handler
+      events:
+        - http:
+            path: ride_approval_notifications/{user_id}/{post_id}
+            method: GET
+            cors: true  
+
+  interestedPeopleList:
+      handler: lambdas/DRIVER_LAMBDAS/interestedPeopleList.handler
+      events:
+        - http:
+            path: interested_people/{route}
+            method: GET
+            cors: true    
+  getDocumentApprovals:
+      handler: lambdas/DASHBOARD_LAMBDAS/getDocumentApprovals.handler
+      events:
+        - http:
+            path: document_approvals
+            method: GET
+            cors: true     
+  ridesStats:
+      handler: lambdas/DASHBOARD_LAMBDAS/ridesStats.handler
+      events:
+        - http:
+            path: rides_stats
+            method: GET
+            cors: true    
+  userDetailsByNumber:
+      handler: lambdas/DASHBOARD_LAMBDAS/userDetailsByNumber.handler
+      events:
+        - http:
+            path: user_details/{phone_number}
+            method: GET
+            cors: true                  
+  userStats:
+      handler: lambdas/DASHBOARD_LAMBDAS/userStats.handler
+      events:
+        - http:
+            path: user_stats
+            method: GET
+            cors: true                                     
+  notifyToTheInterestedPeople:
+      handler: lambdas/DYNAMODB_STREAMS/notifyToTheInterestedPeople.handler  
+  startRide:
+      handler: lambdas/DRIVER_LAMBDAS/startRide.handler
+      events:
+        - http:
+            path: start_ride
+            method: POST
+            cors: true     
+
+  dataNotificationMessage:
+      handler: lambdas/DRIVER_LAMBDAS/dataNotificationMessage.handler
+      events:
+        - http:
+            path: data_notification_message
+            method: POST
+            cors: true    
+  dataMessage:
+      handler: lambdas/DRIVER_LAMBDAS/dataMessage.handler
+      events:
+        - http:
+            path: data_message
+            method: POST
+            cors: true                           
+  cancelRide:
+      handler: lambdas/DRIVER_LAMBDAS/cancelRide.handler
+      events:
+        - http:
+            path: cancel_ride
+            method: PUT
+            cors: true   
+  onConfirmDropOff:
+      handler: lambdas/DRIVER_LAMBDAS/onConfirmDropOff.handler
+      events:
+        - http:
+            path: on_confirm_drop_off
+            method: PUT
+            cors: true 
+  onDroppingOff:
+      handler: lambdas/DRIVER_LAMBDAS/onDroppingOff.handler
+      events:
+        - http:
+            path: on_drop_off
+            method: PUT
+            cors: true 
+  onPayment:
+      handler: lambdas/DRIVER_LAMBDAS/onPayment.handler
+      events:
+        - http:
+            path: on_payment
+            method: PUT
+            cors: true     
+  skipPickup:
+      handler: lambdas/DRIVER_LAMBDAS/skipPickup.handler
+      events:
+        - http:
+            path: skip_pickup
+            method: PUT
+            cors: true                                              
+  chageRidePostStatus:
+      handler: lambdas/DRIVER_LAMBDAS/chageRidePostStatus.handler
+      events:
+        - http:
+            path: change_status/{post_id}
+            method: PUT
+            cors: true        
+  getDriverDocuments:
+      handler: lambdas/DRIVER_LAMBDAS/getDriverDocuments.handler
+      events:
+        - http:
+            path: driver_documents/{driver_id}
+            method: GET
+            cors: true  
+
+  getNotifications:
+      handler: lambdas/COMMON/getNotifications.handler
+      events:
+        - http:
+            path: notifications/{id}
+            method: GET
+            cors: true     
+  publishAppWideNotification:
+      handler: lambdas/COMMON/publishAppWideNotification.handler
+      events:
+        - http:
+            path: publish_app_wide_announcement
+            method: POST
+            cors: true               
+  notificationService:
+      handler: lambdas/COMMON/notificationService.handler
+      vpc:
+       securityGroupIds:
+        - sg-0d5d419455dbad18e
+       subnetIds:
+        - subnet-018aabddb1ae66e63         
+      events:
+        - http:
+            path: notifications-service
+            method: POST
+            cors: true                             
+  rejectRide:
+      handler: lambdas/DRIVER_LAMBDAS/rejectRide.handler
+      events:
+        - http:
+            path: rejected_ride
+            method: PUT
+            cors: true                
+  cancelRideByPassenger:
+      handler: lambdas/PASSENGER_LAMBDAS/cancelRideByPassenger.handler
+      events:
+        - http:
+            path: cancel_ride_by_passenger
+            method: PUT
+            cors: true    
+  updateCNIC:
+      handler: lambdas/PASSENGER_LAMBDAS/updateCNIC.handler
+      events:
+        - http:
+            path: update_cnic
+            method: PUT
+            cors: true               
+  cancelRideBeforeSubscription:
+      handler: lambdas/PASSENGER_LAMBDAS/cancelRideBeforeSubscription.handler
+      events:
+        - http:
+            path: cancel_ride_before_subscription
+            method: PUT
+            cors: true                             
+  publish_notification:
+      handler: lambdas/publish_notification.handler
+      events:
+        - http:
+            path: publish_notification
+            method: GET
+            cors: true  
+  verifyDriverInfo:
+      handler: lambdas/DASHBOARD_LAMBDAS/verifyDriverInfo.handler
+      events:
+        - http:
+            path: verify_driver_info
+            method: PUT
+            cors: true                                                             
+
+resources:
+  Resources:
+ # Resources created according to blog post:
+    # http://techblog.financialengines.com/2016/09/26/aws-lambdas-with-a-static-outgoing-ip/
+    
+    # Step 1: Create a new VPC
+    VPCStaticIP:
+      Type: AWS::EC2::VPC
+      Properties: 
+        CidrBlock: 11.0.0.0/16
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-vpc
+    
+    # Step 2: Create 2 Subnets
+    SubnetPublic:
+      Type: AWS::EC2::Subnet
+      Properties:
+        AvailabilityZone: ${self:provider.region}b
+        CidrBlock: 11.0.0.0/24
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-public-subnet
+        VpcId:
+          Ref: VPCStaticIP
+
+    SubnetPrivate:
+      Type: AWS::EC2::Subnet
+      Properties:
+        AvailabilityZone: ${self:provider.region}b
+        CidrBlock: 11.0.1.0/24
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-private-subnet
+        VpcId:
+          Ref: VPCStaticIP
+    
+    # Step 3: Create an Internet Gateway
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-igw
+
+    # Attach Internet Gateway to VPC
+    VPCGatewayAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        InternetGatewayId:
+          Ref: InternetGateway
+        VpcId:
+          Ref: VPCStaticIP
+  
+    # Step 4: Create a public Route Table and Assign it to our public route
+    RouteTablePublic:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId:
+          Ref: VPCStaticIP
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-public-route
+  
+    RoutePublic:
+      Type: AWS::EC2::Route
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId:
+          Ref: InternetGateway
+        RouteTableId:
+          Ref: RouteTablePublic
+  
+    SubnetRouteTableAssociationPublic:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId:
+          Ref: RouteTablePublic
+        SubnetId:
+          Ref: SubnetPublic
+    
+    # Step 5: Create a NAT Gateway
+    # Before creating NAT Gateway, we need to create Elastic IP with vpc scope
+    EIP:
+      Type: AWS::EC2::EIP
+      Properties:
+        Domain: vpc
+  
+    NatGateway:
+      Type: AWS::EC2::NatGateway
+      Properties:
+        AllocationId:
+          Fn::GetAtt: [EIP, AllocationId]
+        SubnetId:
+          Ref: SubnetPublic
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-natgateway          
+
+    # In tutorial NAT Gateway is attached as default route 0.0.0.0/0 in main Route Table.
+    # Main Route Table is created implicitely during VPC creation and CloudFormation
+    # has no access to its ID. To overcome this limitation we create additional Route Table.
+    RouteTablePrivate:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId:
+          Ref: VPCStaticIP
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-private-route
+
+    RoutePrivate:
+      Type: AWS::EC2::Route
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId:
+          Ref: NatGateway
+        RouteTableId:
+          Ref: RouteTablePrivate
+
+    SubnetRouteTableMainAssociationPrivate:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId:
+          Ref: RouteTablePrivate
+        SubnetId:
+          Ref: SubnetPrivate    
+    BantlobucketUpload:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: manzelprojectbucketrepo
+    ImageUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.imageUploadBucket}
+        AccessControl: PublicRead
+    DriverPostedRidesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.driverPostedRidesTableName}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: S     
+          - AttributeName: ride_status
+            AttributeType: S   
+          - AttributeName: post_id
+            AttributeType: S                               
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        LocalSecondaryIndexes:
+          - IndexName: sortByUserID
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: user_id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL   
+          - IndexName: sortByDate
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: created_at
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL   
+          - IndexName: sortStatus
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: ride_status
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                                        
+          - IndexName: sortByPostID
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: post_id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                                                      
+        GlobalSecondaryIndexes:
+          - IndexName: SortByActiveRidesAll
+            KeySchema:
+              - AttributeName: ride_status
+                KeyType: HASH      
+              - AttributeName: SK
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL    
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1                    
+        TimeToLiveSpecification:
+          AttributeName: expdate
+          Enabled: true        
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1          
+    ConfirmedRidesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.confirmedRidesTableName}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: driver_id
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: S          
+          - AttributeName: route_index
+            AttributeType: S       
+          - AttributeName: ride_status
+            AttributeType: S                            
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        LocalSecondaryIndexes:
+          - IndexName: sortByDriverID
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: driver_id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL   
+          - IndexName: sortByDate
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: created_at
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                 
+          - IndexName: sortByRoute
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: route_index
+                KeyType: RANGE                
+            Projection:
+              ProjectionType: ALL                           
+        GlobalSecondaryIndexes:
+          - IndexName: sortByRidesStatusGS
+            KeySchema:
+              - AttributeName: ride_status
+                KeyType: HASH      
+              - AttributeName: SK
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL 
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1                       
+        TimeToLiveSpecification:
+          AttributeName: expdate
+          Enabled: true
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1          
+    UserTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.userTableName}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: S     
+          - AttributeName: status
+            AttributeType: S                          
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: user_id
+            KeyType: RANGE
+        LocalSecondaryIndexes:  
+          - IndexName: sortByDate
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: created_at
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL  
+          - IndexName: sortByStatus
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: status
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL            
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1   
+    EWalletTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.eWalletTableName}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: S                 
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        LocalSecondaryIndexes:  
+          - IndexName: sortByDate
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: created_at
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                 
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1       
+    NotificationTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.notificationTable}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: S                 
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: created_at
+            KeyType: RANGE             
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1     
+    QRCodeGeneratedData:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.qrgeneratedData}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S                 
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE             
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1                        
+    MarchantPAN:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.marchantpan}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S                 
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        LocalSecondaryIndexes:  
+          - IndexName: sortByStatus
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: status
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                 
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    AlertRidesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.alertRideTable}
+        AttributeDefinitions:
+          - AttributeName: destination
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S               
+        KeySchema:
+          - AttributeName: destination
+            KeyType: HASH
+          - AttributeName: date
+            KeyType: RANGE               
+        TimeToLiveSpecification:
+          AttributeName: expdate
+          Enabled: true        
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    CancelRidesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.cancelledRidesTableName}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S               
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE               
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1          
+    RideApprovalTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.rideApprovalTableName}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S                 
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        LocalSecondaryIndexes:  
+          - IndexName: sortByStatus
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: status
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                 
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    TransactionNotificationTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.transactionNotificationTable}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: MerchantPAN
+            AttributeType: S                 
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        LocalSecondaryIndexes:  
+          - IndexName: sortByMerchantPAN
+            KeySchema:
+              - AttributeName: PK
+                KeyType: HASH      
+              - AttributeName: MerchantPAN
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL                 
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
